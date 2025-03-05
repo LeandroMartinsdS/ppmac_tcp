@@ -8,49 +8,79 @@
 #include "pp_tcp.h"
 
 
-void Die(char *message) {
+inline void Die(char *message) {
     perror(message);
     exit(EXIT_FAILURE);
 }
 
-void kill_handler(int sig) {
+inline void kill_handler(int sig) {
   close(serverSock);
   CloseLibrary();
   exit(EXIT_SUCCESS);
 }
 
-void HandleClient(int clientSock) {
-    char buffer[BUFFSIZE];
-    char dest[10];
-    int received = -1;
-    InitLibrary();  // Required for accessing Power PMAC library
+inline void process_data(double values[6]) {
+    static int i;
 
-    // Receive message from client
-    if ((received = recv(clientSock, buffer, BUFFSIZE, 0)) < 0) {
-        Die("Failed to receive initial bytes from client");
+    for (i = 0; i < 6; i++) {
+        pshm->P[(100+i)] = values[i];
     }
-
-    // Send received message back to client
-    while (received > 0) {
-        // HACK
-        pshm->P[100]=atof(buffer);
-        *src = "USHM";
-        // WriteBuffer(buffer,)
-        // Check for more data
-        if ((received = recv(clientSock, buffer, BUFFSIZE, 0)) < 0) {
-            Die("Failed to receive additional bytes from client");
-        }
-    }
-    printf("%s\n", *dest);
-    close(clientSock);
 }
 
+void HandleClient(int clientSock) {
+    static char buffer[BUFFSIZE];
+    static ssize_t bytes_received;
+    static double values[6];
+
+    InitLibrary();  // Required for accessing Power PMAC library
+    double exec_time = GetCPUClock();
+    int i=0;
+    while (1) {
+        // Receive message from client
+        bytes_received = recv(clientSock, buffer, BUFFSIZE, 0);
+        if (bytes_received <= 0) {
+            if (bytes_received < 0) {
+                perror("recv");
+            } 
+//            else {
+//                printf("Client disconnected\n");
+//            }
+            break;
+        }
+
+        // Check for shutdown command
+        if (strncmp(buffer, SHUTDOWN_CMD, bytes_received) == 0) {
+            printf("Shutdown command received\n");
+            close(clientSock);
+            close(serverSock);
+            CloseLibrary();
+            exit(EXIT_SUCCESS);
+        }
+
+        // Check if the received bytes match the expected size
+        if (bytes_received != BUFFSIZE) {
+            printf("Warning: Expected %d bytes, but received %zd bytes\n", BUFFSIZE, bytes_received);
+            continue;
+        }
+
+        // Unpack data
+        memcpy(values, buffer, 6 * sizeof(double));
+        
+        process_data(values);
+        printf("%f\n", GetCPUClock()-exec_time);
+    }
+
+    close(clientSock);
+    close(serverSock);
+    CloseLibrary();
+    exit(EXIT_SUCCESS);
+}
 int main() {
     //int serverSock, clientSock;
     // global int serverSock due to kill_handler
     int clientSock;
     struct sockaddr_in serverAddr, clientAddr;
-    unsigned int clientLen;
+    socklen_t clientLen;
 
     //------------------------------------------------
     // Reguired uncontrolled program terminations
@@ -64,6 +94,12 @@ int main() {
     // Create the TCP socket
     if ((serverSock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) {
         Die("Failed to create socket");
+    }
+
+   // Set socket options
+    int opt = 1;
+    if (setsockopt(serverSock, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt, sizeof(opt)) < 0) {
+        Die("Failed to set socket options");
     }
 
     // Construct the server sockaddr_in structure
@@ -82,6 +118,7 @@ int main() {
         Die("Failed to listen on server socket");
     }
 
+    InitLibrary();
     // Run until cancelled
     while (1) {
         clientLen = sizeof(clientAddr);
@@ -89,9 +126,11 @@ int main() {
         if ((clientSock = accept(serverSock, (struct sockaddr *) &clientAddr, &clientLen)) < 0) {
             Die("Failed to accept client connection");
         }
-
-        printf("Client connected: %s\n", inet_ntoa(clientAddr.sin_addr));
-        HandleClient(clientSock);
+        else {
+           // Client connected
+            HandleClient(clientSock);
+            //break;
+        }
     }
 
     close(serverSock);
