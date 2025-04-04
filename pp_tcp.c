@@ -1,12 +1,4 @@
-/*For more information see notes.txt in the Documentation folder */
-#include <gplib.h>
-#include <stdlib.h>
-#include <errno.h>
-
-#define _PPScriptMode_		// for enum mode, replace this with #define _EnumMode_
-#include "../../Include/pp_proj.h"
 #include "pp_tcp.h"
-
 
 inline void Die(char *message) {
     perror(message);
@@ -15,25 +7,39 @@ inline void Die(char *message) {
 
 inline void kill_handler(int sig) {
   close(serverSock);
+
+  #ifndef DEBUG
   CloseLibrary();
+  #endif
+
   exit(EXIT_SUCCESS);
 }
 
-inline void process_data(double values[6]) {
-    static int i;
+void test_process_data(double values[]) {
+    int i;
+    double *ptr;
+    ptr = (double *) pushm + MASTER_ECT_BASE;
 
     for (i = 0; i < 6; i++) {
-        pshm->P[(100+i)] = values[i];
+        *ptr = values[i];
+        ptr++;
+
+        // printf("%3.6f \t | ", *ptr);
+        printf("%p: %3.4f \t| ", ptr, *ptr);
     }
+    printf("\n");
 }
 
 void HandleClient(int clientSock) {
     static char buffer[BUFFSIZE];
-    static ssize_t bytes_received;
+    static size_t bytes_received;
     static double values[6];
 
+    #ifndef DEBUG
     InitLibrary();  // Required for accessing Power PMAC library
     double exec_time = GetCPUClock();
+    #endif
+
     int i=0;
     while (1) {
         // Receive message from client
@@ -41,7 +47,7 @@ void HandleClient(int clientSock) {
         if (bytes_received <= 0) {
             if (bytes_received < 0) {
                 perror("recv");
-            } 
+            }
 //            else {
 //                printf("Client disconnected\n");
 //            }
@@ -53,7 +59,9 @@ void HandleClient(int clientSock) {
             printf("Shutdown command received\n");
             close(clientSock);
             close(serverSock);
+            #ifndef DEBUG
             CloseLibrary();
+            #endif
             exit(EXIT_SUCCESS);
         }
 
@@ -65,14 +73,19 @@ void HandleClient(int clientSock) {
 
         // Unpack data
         memcpy(values, buffer, 6 * sizeof(double));
-        
-        process_data(values);
+
+        test_process_data(values);
+
+        #ifndef DEBUG
         printf("%f\n", GetCPUClock()-exec_time);
+        #endif
     }
 
     close(clientSock);
     close(serverSock);
+    #ifndef DEBUG
     CloseLibrary();
+    #endif
     exit(EXIT_SUCCESS);
 }
 int main() {
@@ -82,6 +95,14 @@ int main() {
     struct sockaddr_in serverAddr, clientAddr;
     socklen_t clientLen;
 
+    #ifdef DEBUG
+    pushm = (void *)malloc(sizeof(pushm));  // HACK
+    pshm = (void *)malloc(sizeof(pshm));    // HACK
+
+    #else
+    InitLibrary();  // Required for accessing Power PMAC library
+    #endif
+
     //------------------------------------------------
     // Reguired uncontrolled program terminations
     //-------------------------------------------------
@@ -90,7 +111,7 @@ int main() {
     signal(SIGHUP,kill_handler);    // Hangup of controlling window (Close of CMD window)
     signal(SIGKILL,kill_handler);   // Forced termination (ps -9)
     signal(SIGABRT,kill_handler);   // Abnormal termination (segmentation fault)
-    
+
     // Create the TCP socket
     if ((serverSock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) {
         Die("Failed to create socket");
@@ -108,6 +129,12 @@ int main() {
     serverAddr.sin_addr.s_addr = htonl(INADDR_ANY);
     serverAddr.sin_port = htons(PORT);
 
+    #ifdef DEBUG
+    if (inet_pton(AF_INET, HOST, &serverAddr.sin_addr) <= 0) {
+        Die("Invalid address/ Address not supported");
+    }
+    #endif
+
     // Bind the server socket
     if (bind(serverSock, (struct sockaddr *) &serverAddr, sizeof(serverAddr)) < 0) {
         Die("Failed to bind the server socket");
@@ -118,7 +145,6 @@ int main() {
         Die("Failed to listen on server socket");
     }
 
-    InitLibrary();
     // Run until cancelled
     while (1) {
         clientLen = sizeof(clientAddr);
@@ -133,8 +159,12 @@ int main() {
         }
     }
 
-    close(serverSock);
-    CloseLibrary();  // Required for accessing Power PMAC library
+    // close(serverSock);
+    #ifdef DEBUG
+    free(pushm);
+    #else
+    CloseLibrary();
+    #endif
     return 0;
 }
 

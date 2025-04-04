@@ -1,3 +1,9 @@
+# ignore all extensionless files but LICENSE
+*
+!*/
+!*.*
+!LICENSE
+
 *.log
 *.o
 *.mak
