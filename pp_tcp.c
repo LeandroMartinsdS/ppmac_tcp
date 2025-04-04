@@ -40,7 +40,6 @@ void HandleClient(int clientSock) {
     double exec_time = GetCPUClock();
     #endif
 
-    int i=0;
     while (1) {
         // Receive message from client
         bytes_received = recv(clientSock, buffer, BUFFSIZE, 0);
@@ -100,8 +99,30 @@ int main() {
     pshm = (void *)malloc(sizeof(pshm));    // HACK
 
     #else
+    struct sched_param param;
+    int done = 0;
+    struct timespec sleeptime = {0};
+    sleeptime.tv_nsec = NANO_5MSEC;	// #defines NANO_1MSEC, NANO_5MSEC & NANO_10MSEC are defined
+
+    #ifndef RUN_AS_RT_APP
+    //-----------------------------
+    // Runs as a NON RT Linux APP
+    //-----------------------------
+    param.__sched_priority = 0;
+    pthread_setschedparam(pthread_self(),  SCHED_OTHER, &param);
+    #else
+    //---------------------------------------------------------------
+    // Runs as a RT Linux APP with the same scheduling policy as the
+    // Background script PLCs
+    // To run at a recommended lower priority use BACKGROUND_RT_PRIORITY - 10
+    // To run at a higher priority use BACKGROUND_RT_PRIORITY + 1
+    //---------------------------------------------------------------------
+    param.__sched_priority =  BACKGROUND_RT_PRIORITY - 10;
+    pthread_setschedparam(pthread_self(),  SCHED_FIFO, &param);
+    #endif // RUN_AS_RT_APP
+
     InitLibrary();  // Required for accessing Power PMAC library
-    #endif
+    #endif // DEBUG
 
     //------------------------------------------------
     // Reguired uncontrolled program terminations
