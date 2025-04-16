@@ -1,4 +1,5 @@
 // #define DEBUG
+#define RUN_AS_RT_APP
 
 // Socket settings
 #define PORT 8080
