@@ -3,7 +3,7 @@
 
 // Socket settings
 #define MAXPENDING 5
-#define VAR_NUM     6
+#define VAR_NUM     7
 #define BUFFSIZE VAR_NUM*sizeof(double)
 #define SHUTDOWN_CMD "SHUTDOWN"
 

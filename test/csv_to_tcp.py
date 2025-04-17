@@ -9,7 +9,7 @@ import pandas as pd
 HOST = '127.0.0.1'  # Replace with your MCU's IP address
 PORT = 8080
 
-DATA_FORMAT = '<6d'  # Format for 6 double variables - forces little-endian
+DATA_FORMAT = '<7d'  # Format for 6 double variables - forces little-endian
 SEND_RATE_HZ = 5000  # Sending rate in Hz
 SHUTDOWN_CMD = "SHUTDOWN"
 
@@ -55,8 +55,8 @@ def send_packed_data(sock, packed_data_array, rate_hz):
 
         time_behind = time.perf_counter_ns() - next_send_time
         if (time_behind > tolerance_ns):
-            logging.error(f"Warning: Sending is behind schedule by {time_behind} ns")
-            break
+            logging.warning(f"Warning: Sending is behind schedule by {time_behind} ns")
+            #break
 
 
 def invert_csv(input_file, output_file):
@@ -76,17 +76,19 @@ def invert_csv(input_file, output_file):
 
 def main():
 
-    filename1 = "motion_data.csv"
-    filename2 = "reversed_motion_data.csv"
+    filename1 = "motion_data1.csv"
+    #filename2 = "reversed_motion_data.csv"
+    filename2 = "motion_data2.csv"
 
-    if not os.path.exists(filename2):
+    if not os.path.exists(os.path.join(os.path.dirname(__file__), filename2)):
+        print(os.path.dirname(__file__))
         logging.info(f"{filename2} does not exist. Inverting {filename1}.")
         invert_csv(filename1, filename2)
 
     filename_list = [filename1, filename2]
     file_path_list = [os.path.join(os.path.dirname(__file__),filename) for filename in filename_list]
     try:
-        df = [pd.read_csv(file, delimiter=' ') for file in file_path_list]
+        df = [pd.read_csv(file, delimiter=',') for file in file_path_list]
     except Exception as e:
         logging.error(f"Error reading CSV files: {e}")
         return
