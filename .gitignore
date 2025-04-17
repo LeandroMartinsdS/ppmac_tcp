@@ -3,6 +3,7 @@
 !*/
 !*.*
 !LICENSE
+!Dockerfile
 
 *.log
 *.o
