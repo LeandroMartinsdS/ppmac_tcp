@@ -1,10 +1,10 @@
-// #define DEBUG
+#define DEBUG
 #define RUN_AS_RT_APP
 
 // Socket settings
-#define PORT 8080
 #define MAXPENDING 5
-#define BUFFSIZE 48 // 6* sizeof(double)
+#define VAR_NUM     6
+#define BUFFSIZE VAR_NUM*sizeof(double)
 #define SHUTDOWN_CMD "SHUTDOWN"
 
 // Constants
@@ -31,8 +31,6 @@
     #include <signal.h>
     #include <unistd.h>
 
-    #define HOST "127.0.0.1"
-
 #else
     #include <gplib.h>
     #include <stdlib.h>
@@ -41,14 +39,14 @@
     #define _PPScriptMode_		// for enum mode, replace this with #define _EnumMode_
     #include "../../Include/pp_proj.h"
 
-    #define HOST "172.23.59.7"
-
 #endif
-
-
 
 int serverSock;
 
+void InitSocket(char *host, int port);
+void AcceptClient();
+void HandleClient(int clientSock);
+void CloseSocket(int sock);
 void Die(char *message);
 void kill_handler(int sig);
-void HandleClient(int clientSock);
+void test_process_data(double values[]);
