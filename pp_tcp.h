@@ -1,12 +1,12 @@
-// #define DEBUG
+ #define DEBUG
 #define RUN_AS_RT_APP
 
 // Socket settings
 #define PORT 8080
 #define MAXPENDING 5
-#define BUFFSIZE 48 // 6* sizeof(double)
+#define VAR_NUM     6
+#define BUFFSIZE VAR_NUM*sizeof(double)
 #define SHUTDOWN_CMD "SHUTDOWN"
-
 // Constants
 #define MASTER_ECT_BASE 19
 
@@ -45,10 +45,12 @@
 
 #endif
 
-
-
 int serverSock;
 
-void Die(char *message);
-void kill_handler(int sig);
+void InitSocket();
+void AcceptClient();
 void HandleClient(int clientSock);
+void CloseSocket(int sock);
+inline void Die(char *message);
+inline void kill_handler(int sig);
+void test_process_data(double values[]);
