@@ -1,4 +1,4 @@
-#include "pp_tcp.h"
+#include "ppmac_tcp.h"
 
 void InitSocket() {
     struct sockaddr_in serverAddr;
