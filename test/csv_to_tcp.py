@@ -7,10 +7,11 @@ import pandas as pd
 
 # Define the server address and port
 HOST = '127.0.0.1'  # Replace with your MCU's IP address
+HOST = '172.23.59.7'
 PORT = 8080
 
 DATA_FORMAT = '<7d'  # Format for 6 double variables - forces little-endian
-SEND_RATE_HZ = 5000  # Sending rate in Hz
+SEND_RATE_HZ = 1000  # Sending rate in Hz
 SHUTDOWN_CMD = "SHUTDOWN"
 
 def pack_row(row, dtype):
@@ -56,46 +57,64 @@ def send_packed_data(sock, packed_data_array, rate_hz):
         time_behind = time.perf_counter_ns() - next_send_time
         if (time_behind > tolerance_ns):
             logging.warning(f"Warning: Sending is behind schedule by {time_behind} ns")
-            #break
+            # break
 
 
-def invert_csv(input_file, output_file):
-    input_file_path = os.path.join(os.path.dirname(__file__),input_file)
-    output_file_path = os.path.join(os.path.dirname(__file__),output_file)
+def list_csv_files(directory):
+    try:
+        print(f"Checking if directory '{directory}' exists...")
+        if not os.path.exists(directory):
+            print(f"Directory '{directory}' does not exist.")
+            return []
 
-    # Read the CSV filee
-    df = pd.read_csv(input_file_path)
+        print(f"Listing all files in directory '{directory}'...")
+        all_files = os.listdir(directory)
+        print(f"All files: {all_files}")
 
-    # Reverse the DataFrame
-    df_reversed = df.iloc[::-1]
+        if not all_files:
+            print(f"No files found in directory '{directory}'.")
+            return []
 
-    # Write the reversed DataFrame to a new CSV file
-    df_reversed.to_csv(output_file_path, index=False)
+        print(f"Filtering CSV files...")
+        csv_files = [f for f in all_files if f.endswith('.csv')]
+        print(f"CSV files: {csv_files}")
 
-    return output_file
+        if not csv_files:
+            print(f"No CSV files found in directory '{directory}'.")
+
+        return csv_files
+    except PermissionError:
+        print(f"Permission denied for directory '{directory}'.")
+        return []
+
+
+print("Starting script...")  # Confirm script execution
+path = os.path.join(os.path.dirname(__file__), "files")
+print(f"Constructed path: {path}")  # Print constructed path
+filename_list = list_csv_files(path)
+file_path_list = filename_list
+print(f"CSV files in '{path}': {file_path_list}")
+
 
 def main():
 
-    filename1 = "motion_data1.csv"
-    #filename2 = "reversed_motion_data.csv"
-    filename2 = "motion_data2.csv"
+    path = os.path.join(os.path.dirname(__file__),"files")
+    print(f"Constructed path: {path}")  # Print constructed path
+    filename_list = list_csv_files(path)
+    print(f"CSV files in '{path}': {filename_list}")
+    file_path_list = [os.path.join(path,filename) for filename in filename_list]
+    [print(filename) for filename in file_path_list]
 
-    if not os.path.exists(os.path.join(os.path.dirname(__file__), filename2)):
-        print(os.path.dirname(__file__))
-        logging.info(f"{filename2} does not exist. Inverting {filename1}.")
-        invert_csv(filename1, filename2)
-
-    filename_list = [filename1, filename2]
-    file_path_list = [os.path.join(os.path.dirname(__file__),filename) for filename in filename_list]
     try:
         df = [pd.read_csv(file, delimiter=',') for file in file_path_list]
     except Exception as e:
         logging.error(f"Error reading CSV files: {e}")
+
         return
 
     # Files that will be packed than sent if files_to_send > len(filename_list),
     # then it executes the list circularly
-    files_to_send = 2
+    files_to_send = 3
     logging.info("Packing data")
     packed_data_list=[]
     for i in range(files_to_send):
@@ -110,7 +129,7 @@ def main():
         sock.connect((HOST, PORT))
         logging.info("Connected")
         #send_packed_data(sock, packed_data_array)
-        send_packed_data(sock, packed_data_list, 1000)
+        send_packed_data(sock, packed_data_list, SEND_RATE_HZ)
         shutdown_command = SHUTDOWN_CMD.encode('utf-8')
         sock.sendall(shutdown_command)
         logging.info("End of communication")

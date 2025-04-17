@@ -169,7 +169,7 @@ int main() {
     #else
     struct sched_param param;
     int done = 0;
-    struct timespec sleeptime = {0};5
+    struct timespec sleeptime = {0};
     sleeptime.tv_nsec = NANO_5MSEC;	// #defines NANO_1MSEC, NANO_5MSEC & NANO_10MSEC are defined
 
     #ifndef RUN_AS_RT_APP
