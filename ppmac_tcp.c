@@ -1,8 +1,7 @@
 #include "ppmac_tcp.h"
 
-void InitSocket() {
+void InitSocket(char *host, int port) {
     struct sockaddr_in serverAddr;
-
     //------------------------------------------------
     // Reguired uncontrolled program terminations
     //-------------------------------------------------
@@ -27,13 +26,11 @@ void InitSocket() {
     memset(&serverAddr, 0, sizeof(serverAddr));
     serverAddr.sin_family = AF_INET;
     serverAddr.sin_addr.s_addr = htonl(INADDR_ANY);
-    serverAddr.sin_port = htons(PORT);
+    serverAddr.sin_port = htons(port);
 
-    #ifdef DEBUG
-    if (inet_pton(AF_INET, HOST, &serverAddr.sin_addr) <= 0) {
+    if (inet_pton(AF_INET, host, &serverAddr.sin_addr) <= 0) {
         Die("Invalid address/ Address not supported");
     }
-    #endif
 
     // Bind the server socket
     if (bind(serverSock, (struct sockaddr *) &serverAddr, sizeof(serverAddr)) < 0) {
@@ -131,12 +128,12 @@ void CloseSocket(int sock) {
     }
 }
 
-inline void Die(char *message) {
+void Die(char *message) {
     perror(message);
     exit(EXIT_FAILURE);
 }
 
-inline void kill_handler(int sig) {
+void kill_handler(int sig) {
   close(serverSock);
 
   #ifndef DEBUG
@@ -162,6 +159,8 @@ void test_process_data(double values[]) {
 
 int main() {
     // global int serverSock due to kill_handler
+    char *host = "127.0.0.1";
+    int port = 8080;
 
     #ifdef DEBUG
     pushm = (void *)malloc(sizeof(pushm));  // HACK
@@ -170,7 +169,7 @@ int main() {
     #else
     struct sched_param param;
     int done = 0;
-    struct timespec sleeptime = {0};
+    struct timespec sleeptime = {0};5
     sleeptime.tv_nsec = NANO_5MSEC;	// #defines NANO_1MSEC, NANO_5MSEC & NANO_10MSEC are defined
 
     #ifndef RUN_AS_RT_APP
@@ -192,7 +191,7 @@ int main() {
 
     InitLibrary();  // Required for accessing Power PMAC library
     #endif // DEBUG
-    InitSocket();
+    InitSocket(host, port);
     AcceptClient();
     CloseSocket(serverSock);
 
