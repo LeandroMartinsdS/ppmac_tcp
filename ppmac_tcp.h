@@ -3,7 +3,7 @@
 
 // Socket settings
 #define MAXPENDING 5
-#define VAR_NUM     6
+#define VAR_NUM     7
 #define BUFFSIZE VAR_NUM*sizeof(double)
 #define SHUTDOWN_CMD "SHUTDOWN"
 
@@ -25,7 +25,7 @@
     #include <stddef.h>
     //
     #include <sys/types.h>
-    #include <sys/socket.h>
+    #include <asm-generic/socket.h>
     #include <netinet/in.h>
     #include <arpa/inet.h>
     #include <signal.h>
