@@ -10,7 +10,8 @@ HOST = '127.0.0.1'  # Replace with your MCU's IP address
 PORT = 8080
 
 DATA_FORMAT = '<7d'  # Format for 6 double variables - forces little-endian
-SEND_RATE_HZ = 1000  # Sending rate in Hz
+HEADER = 0
+SEND_RATE_HZ = 100  # Sending rate in Hz
 SHUTDOWN_CMD = "SHUTDOWN"
 
 def pack_row(row, dtype):
@@ -100,12 +101,13 @@ def main():
     path = os.path.join(os.path.dirname(__file__),"files")
     print(f"Constructed path: {path}")  # Print constructed path
     filename_list = list_csv_files(path)
-    print(f"CSV files in '{path}': {filename_list}")
     file_path_list = [os.path.join(path,filename) for filename in filename_list]
+    # file_path_list = ['/workspaces/ppmac_tcp/test/files/test.csv','/workspaces/ppmac_tcp/test/files/test2.csv']
+    print(f"CSV files in '{path}':")
     [print(filename) for filename in file_path_list]
 
     try:
-        df = [pd.read_csv(file, delimiter=',') for file in file_path_list]
+        df_list = [pd.read_csv(file, delimiter=',', header=0) for file in file_path_list]
     except Exception as e:
         logging.error(f"Error reading CSV files: {e}")
 
@@ -113,11 +115,11 @@ def main():
 
     # Files that will be packed than sent if files_to_send > len(filename_list),
     # then it executes the list circularly
-    files_to_send = 3
+    files_to_send = 2
     logging.info("Packing data")
     packed_data_list=[]
     for i in range(files_to_send):
-        packed_data_list.extend(pack_file(df[i % len(df)]))
+        packed_data_list.extend(pack_file(df_list[i % len(df_list)]))
     logging.info("Packing complete")
     time.sleep(2)
 

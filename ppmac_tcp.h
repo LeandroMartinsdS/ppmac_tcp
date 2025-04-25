@@ -1,16 +1,16 @@
-#define DEBUG
-#define RUN_AS_RT_APP
+#define LOCAL_HOST   // Comment out if executing on the Power PMAC
+#ifndef LOCAL_HOST
+// #define RUN_AS_RT_APP
+// #define DEBUG
+#endif
 
 // Socket settings
 #define MAXPENDING 5
-#define VAR_NUM     7
-#define BUFFSIZE VAR_NUM*sizeof(double)
+#define BUFFSIZE 1024 //7*sizeof(double)
 #define SHUTDOWN_CMD "SHUTDOWN"
 
 // Constants
-#define MASTER_ECT_BASE 19
-
-#ifdef DEBUG
+#ifdef LOCAL_HOST
     # define MAX_P 65536
     struct SHM {
         double P[MAX_P];            // Global P variable Array
@@ -31,6 +31,8 @@
     #include <signal.h>
     #include <unistd.h>
 
+    #define MASTER_ECT_BASE 0
+
 #else
     #include <gplib.h>
     #include <stdlib.h>
@@ -39,14 +41,16 @@
     #define _PPScriptMode_		// for enum mode, replace this with #define _EnumMode_
     #include "../../Include/pp_proj.h"
 
-#endif
+    #define MASTER_ECT_BASE 19
+#endif // LOCAL_HOST
 
 int serverSock;
 
 void InitSocket(char *host, int port);
-void AcceptClient();
-void HandleClient(int clientSock);
+int AcceptClient(void);
+int HandleClient(int clientSock, char *buffer, size_t data_size);
+// TO DO: create status type for socket
 void CloseSocket(int sock);
 void Die(char *message);
 void kill_handler(int sig);
-void test_process_data(double values[]);
+void test_process_data(double *dest, double *src, size_t data_size);
