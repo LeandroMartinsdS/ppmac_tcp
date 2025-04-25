@@ -10,12 +10,20 @@ HOST = '127.0.0.1'  # Replace with your MCU's IP address
 PORT = 8080
 
 DATA_FORMAT = '<7d'  # Format for 6 double variables - forces little-endian
-SEND_RATE_HZ = 1000  # Sending rate in Hz
+HEADER = 0
+SEND_RATE_HZ = 100  # Sending rate in Hz
 SHUTDOWN_CMD = "SHUTDOWN"
+READY_CMD_PREFIX = "BUFFER_READY:"
+
+# Configure logging to print to the console
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
+
 
 def pack_row(row, dtype):
-    data = row.to_numpy(dtype)  # Convert pandas Series to numpy array of floats
+    data = row.to_numpy(dtype)  # Convert pandas Series
+    # to numpy array of floats
     return struct.pack(DATA_FORMAT, *data)  # Convert to binary
+
 
 def pack_file(df, dtype=float):
     packed_data_list = []
@@ -30,56 +38,68 @@ def pack_file(df, dtype=float):
             logging.error(f"Error converting row {i} to floats: {e}")
     return packed_data_list
 
-# Configure logging to print to the console
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 
-def send_packed_data(sock, packed_data_array, rate_hz):
+def send_packed_data(sock, packed_data_array, rate_hz,
+                     buffer_labels=['A', 'B']):
     interval_ns = 1e9 / rate_hz  # Calculate interval between sends
-    tolerance_ns = interval_ns*0.50
+    tolerance_ns = interval_ns*0.70
 
-    # logging.info(f"Interval of {interval_ns} ns") # Log the send duration
-    next_send_time = time.perf_counter_ns()  # Initialize the next send time
+    for i, packed_data in enumerate(packed_data_array):
+        expected_slot = buffer_labels[i % len(buffer_labels)]
 
-    for packed_data in packed_data_array:
-        # start_time = time.perf_counter_ns()
-        sock.sendall(packed_data)  # Send binary data
-        # end_time = time.perf_counter_ns()
-        # send_duration = end_time - start_time
-        # logging.info(f"Packet sent in {send_duration} ns") # Log the send time
+        # Wait for the correct buffer to be ready
+        while True:
+            try:
+                response = sock.recv(1024).decode().strip()
+                # if response == f"{READY_CMD_PREFIX}{expected_slot}":
+                #     logging.info(f"Server ready for buffer {expected_slot}")
+                #     break
 
-        next_send_time += interval_ns  # Update the next send time
+                break  # TODO remove
+
+            except Exception as e:
+                logging.error(f"Error receiving buffer ready message: {e}")
+                return
+
+        # logging.info(f"Interval of {interval_ns} ns") # Log the send duration
+        next_send_time = time.perf_counter_ns()  # Initialize the next send time
+
+        try:
+            sock.sendall(packed_data)  # Send binary data
+            next_send_time += interval_ns  # Update the next send time
+
+            while time.perf_counter_ns() < next_send_time:
+                pass
+
+            time_behind = time.perf_counter_ns() - next_send_time
+            if (time_behind > tolerance_ns):
+                logging.warning(
+                    f"Warning: Sending is behind schedule by {time_behind} ns")
+                # break
+
+        except Exception as e:
+            logging.error(f"Error sending data for buffer {expected_slot}: {e}")
+            return
 
 
-        while time.perf_counter_ns() < next_send_time:
-            pass
-
-        time_behind = time.perf_counter_ns() - next_send_time
-        if (time_behind > tolerance_ns):
-            logging.warning(f"Warning: Sending is behind schedule by {time_behind} ns")
-            # break
-
-
-def list_csv_files(directory):
+def list_csv_files(directory, prefix=""):
     try:
         print(f"Checking if directory '{directory}' exists...")
         if not os.path.exists(directory):
             print(f"Directory '{directory}' does not exist.")
             return []
 
-        print(f"Listing all files in directory '{directory}'...")
         all_files = os.listdir(directory)
-        print(f"All files: {all_files}")
 
         if not all_files:
             print(f"No files found in directory '{directory}'.")
             return []
 
-        print(f"Filtering CSV files...")
-        csv_files = [f for f in all_files if f.endswith('.csv')]
-        print(f"CSV files: {csv_files}")
+        csv_files = [f for f in all_files if f.endswith('.csv') and
+                     f.startswith(prefix)]
 
         if not csv_files:
-            print(f"No CSV files found in directory '{directory}'.")
+            logging.info(f"No matching CSV files found in '{directory}'.")
 
         return csv_files
     except PermissionError:
@@ -87,37 +107,34 @@ def list_csv_files(directory):
         return []
 
 
-print("Starting script...")  # Confirm script execution
-path = os.path.join(os.path.dirname(__file__), "files")
-print(f"Constructed path: {path}")  # Print constructed path
-filename_list = list_csv_files(path)
-file_path_list = filename_list
-print(f"CSV files in '{path}': {file_path_list}")
-
-
 def main():
+    dirname = "files"
+    filename_prefix = "output"  # Set to "" to include all files
+    path = os.path.join(os.path.dirname(__file__), dirname)
 
-    path = os.path.join(os.path.dirname(__file__),"files")
-    print(f"Constructed path: {path}")  # Print constructed path
-    filename_list = list_csv_files(path)
-    print(f"CSV files in '{path}': {filename_list}")
-    file_path_list = [os.path.join(path,filename) for filename in filename_list]
+    filename_list = list_csv_files(path, filename_prefix)
+    file_path_list = [os.path.join(path, filename)
+                      for filename in filename_list]
+
+    print(f"CSV files in '{path}':")
     [print(filename) for filename in file_path_list]
 
     try:
-        df = [pd.read_csv(file, delimiter=',') for file in file_path_list]
+        df_list = [pd.read_csv(file, delimiter=',', header=0) for file in
+                   file_path_list]
     except Exception as e:
         logging.error(f"Error reading CSV files: {e}")
 
         return
 
-    # Files that will be packed than sent if files_to_send > len(filename_list),
-    # then it executes the list circularly
-    files_to_send = 3
+    # Files that will be packed than sent
+    # if files_to_send > len(filename_list), then
+    # it executes the list circularly
+    files_to_send = 2
     logging.info("Packing data")
-    packed_data_list=[]
+    packed_data_list = []
     for i in range(files_to_send):
-        packed_data_list.extend(pack_file(df[i % len(df)]))
+        packed_data_list.extend(pack_file(df_list[i % len(df_list)]))
     logging.info("Packing complete")
     time.sleep(2)
 
@@ -127,7 +144,7 @@ def main():
         logging.info("Socket open")
         sock.connect((HOST, PORT))
         logging.info("Connected")
-        #send_packed_data(sock, packed_data_array)
+        # send_packed_data(sock, packed_data_array)
         send_packed_data(sock, packed_data_list, SEND_RATE_HZ)
         shutdown_command = SHUTDOWN_CMD.encode('utf-8')
         sock.sendall(shutdown_command)
@@ -136,6 +153,7 @@ def main():
         logging.error(f"Error in socket communication: {e}")
     finally:
         sock.close()
+
 
 if __name__ == '__main__':
     main()

@@ -43,7 +43,7 @@ void InitSocket(char *host, int port) {
     }
 }
 
-void AcceptClient() {
+int AcceptClient() {
     int clientSock;
     struct sockaddr_in clientAddr;
     socklen_t clientLen;
@@ -56,68 +56,51 @@ void AcceptClient() {
             Die("Failed to accept client connection");
         }
         else {
-           // Client connected
-            HandleClient(clientSock);
+            return clientSock;
         }
     }
 }
 
-void HandleClient(int clientSock) {
-    static char buffer[BUFFSIZE];
+int HandleClient(int clientSock, char * buffer, size_t data_size) {
     static size_t bytes_received;
-    static double values[VAR_NUM];
 
-    #ifndef DEBUG
+    #ifndef LOCAL_HOST
     InitLibrary();  // Required for accessing Power PMAC library
-    double exec_time = GetCPUClock();
-    #endif
+    #ifdef DEBUG
+    double exec_time = GetCPUClock();4
+    #endif  // DEBUG
+    #endif  // LOCAL_HOST
 
-    while (1) {
-        // Receive message from client
-        bytes_received = recv(clientSock, buffer, BUFFSIZE, 0);
-        if (bytes_received <= 0) {
-            if (bytes_received < 0) {
-                perror("recv");
-            }
-//            else {
-//                printf("Client disconnected\n");
-//            }
-            break;
+    // Receive message from client
+    bytes_received = recv(clientSock, buffer, data_size*sizeof(double), 0);
+    if (bytes_received <= 0) {
+        if (bytes_received < 0) {
+            perror("recv");
         }
-
-        // Check for shutdown command
-        if (strncmp(buffer, SHUTDOWN_CMD, bytes_received) == 0) {
-            printf("Shutdown command received\n");
-            close(clientSock);
-            close(serverSock);
-            #ifndef DEBUG
-            CloseLibrary();
-            #endif
-            exit(EXIT_SUCCESS);
-        }
-
-        // Check if the received bytes match the expected size
-        if (bytes_received != BUFFSIZE) {
-            printf("Warning: Expected %d bytes, but received %zd bytes\n", BUFFSIZE, bytes_received);
-            continue;
-        }
-
-        // Unpack data
-        memcpy(values, buffer, VAR_NUM * sizeof(double));
-
-        test_process_data(values);
-
-        #ifndef DEBUG
-        printf("%f\n", GetCPUClock()-exec_time);
-        #endif
+        return -1;
     }
 
-    close(clientSock);
-    close(serverSock);
-    #ifndef DEBUG
-    CloseLibrary();
+    // Check for shutdown command
+    if (strncmp(buffer, SHUTDOWN_CMD, bytes_received) == 0) {
+        printf("Shutdown command received\n");
+        close(clientSock);
+        close(serverSock);
+        #ifndef LOCAL_HOST
+        CloseLibrary();
+        #endif
+        exit(EXIT_SUCCESS);
+        return 1;
+    }
+
+    // Check if the received bytes match the expected size
+    if (bytes_received != data_size) {
+        printf("Warning: Expected %zd bytes, but received %zd bytes\n", data_size, bytes_received);
+    }
+
+    #ifdef DEBUG // Does this still make sense here?
+    printf("%f\n", GetCPUClock()-exec_time);
     #endif
-    exit(EXIT_SUCCESS);
+    return 0;
 }
 
 void CloseSocket(int sock) {
@@ -136,70 +119,83 @@ void Die(char *message) {
 void kill_handler(int sig) {
   close(serverSock);
 
-  #ifndef DEBUG
+  #ifndef LOCAL_HOST
   CloseLibrary();
   #endif
 
   exit(EXIT_SUCCESS);
 }
 
-void test_process_data(double values[]) {
+void test_print_data(double *dest, size_t data_count) {
     int i;
-    double *ptr;
-    ptr = (double *) pushm + MASTER_ECT_BASE;
-
-    for (i = 0; i < VAR_NUM; i++) {
-        *ptr = values[i];
-        // printf("%3.6f \t | ", *ptr);
-        printf("%p: %3.4f \t| ", ptr, *ptr);
-        ptr++;
+    for (i = 0; i < data_count; i++) {
+        printf("%p: %3.4f \t| ", dest, *dest);
+        dest++;
     }
     printf("\n");
 }
 
-int main() {
-    // global int serverSock due to kill_handler
-    char *host = "127.0.0.1";
-    int port = 8080;
+// int main() {
+//     #ifdef LOCAL_HOST
+//     pushm = (void *)malloc(sizeof(pushm));  // HACK
+//     pshm = (void *)malloc(sizeof(pshm));    // HACK
 
-    #ifdef DEBUG
-    pushm = (void *)malloc(sizeof(pushm));  // HACK
-    pshm = (void *)malloc(sizeof(pshm));    // HACK
+//     #else
+//     struct sched_param param;
+//     int done = 0;
+//     struct timespec sleeptime = {0};
+//     sleeptime.tv_nsec = NANO_5MSEC;	// #defines NANO_1MSEC, NANO_5MSEC & NANO_10MSEC are defined
 
-    #else
-    struct sched_param param;
-    int done = 0;
-    struct timespec sleeptime = {0};
-    sleeptime.tv_nsec = NANO_5MSEC;	// #defines NANO_1MSEC, NANO_5MSEC & NANO_10MSEC are defined
+//     #ifndef RUN_AS_RT_APP
+//     //-----------------------------
+//     // Runs as a NON RT Linux APP
+//     //-----------------------------
+//     param.__sched_priority = 0;
+//     pthread_setschedparam(pthread_self(),  SCHED_OTHER, &param);
+//     #else
+//     //---------------------------------------------------------------
+//     // Runs as a RT Linux APP with the same scheduling policy as the
+//     // Background script PLCs
+//     // To run at a recommended lower priority use BACKGROUND_RT_PRIORITY - 10
+//     // To run at a higher priority use BACKGROUND_RT_PRIORITY + 1
+//     //---------------------------------------------------------------------
+//     param.__sched_priority =  BACKGROUND_RT_PRIORITY - 10;
+//     pthread_setschedparam(pthread_self(),  SCHED_FIFO, &param);
+//     #endif // RUN_AS_RT_APP
 
-    #ifndef RUN_AS_RT_APP
-    //-----------------------------
-    // Runs as a NON RT Linux APP
-    //-----------------------------
-    param.__sched_priority = 0;
-    pthread_setschedparam(pthread_self(),  SCHED_OTHER, &param);
-    #else
-    //---------------------------------------------------------------
-    // Runs as a RT Linux APP with the same scheduling policy as the
-    // Background script PLCs
-    // To run at a recommended lower priority use BACKGROUND_RT_PRIORITY - 10
-    // To run at a higher priority use BACKGROUND_RT_PRIORITY + 1
-    //---------------------------------------------------------------------
-    param.__sched_priority =  BACKGROUND_RT_PRIORITY - 10;
-    pthread_setschedparam(pthread_self(),  SCHED_FIFO, &param);
-    #endif // RUN_AS_RT_APP
+//     InitLibrary();  // Required for accessing Power PMAC library
+//     #endif // LOCAL_HOST
 
-    InitLibrary();  // Required for accessing Power PMAC library
-    #endif // DEBUG
-    InitSocket(host, port);
-    AcceptClient();
-    CloseSocket(serverSock);
+//     // global int serverSock due to kill_handler
+//     char *host = "127.0.0.1";
+//     int port = 8080;
+//     size_t data_count = 7;
+//     size_t data_size = data_count*sizeof(double);
+//     int clientSock;
+//     int socketStatus;
+//     double *dest = (double *) malloc(data_size);
+//     char buffer[BUFFSIZE];
 
-    #ifdef DEBUG
-    free(pushm);
-    #else
-    CloseLibrary();
-    #endif
-    return 0;
-}
+//     InitSocket(host, port);
+
+//     clientSock = AcceptClient();
+
+//     do {
+//         // TODO: Add busy-wait here until buffer is clear to be overwritten
+//         socketStatus = HandleClient(clientSock, buffer, data_size);
+//         memcpy(dest, buffer, data_size);
+//         test_print_data(dest, data_count);
+//     } while (socketStatus == 0);
+
+//     printf("Out of while\n");
+//     CloseSocket(clientSock);
+//     CloseSocket(serverSock);
+
+//     #ifdef LOCAL_HOST
+//     free(pushm);
+//     #else
+//     CloseLibrary();
+//     #endif
+//     return 0;
+// }
 
