@@ -67,7 +67,7 @@ int HandleClient(int clientSock, char * buffer, size_t data_size) {
     #ifndef LOCAL_HOST
     InitLibrary();  // Required for accessing Power PMAC library
     #ifdef DEBUG
-    double exec_time = GetCPUClock();
+    double exec_time = GetCPUClock();4
     #endif  // DEBUG
     #endif  // LOCAL_HOST
 
@@ -135,67 +135,67 @@ void test_print_data(double *dest, size_t data_count) {
     printf("\n");
 }
 
-int main() {
-    #ifdef LOCAL_HOST
-    pushm = (void *)malloc(sizeof(pushm));  // HACK
-    pshm = (void *)malloc(sizeof(pshm));    // HACK
+// int main() {
+//     #ifdef LOCAL_HOST
+//     pushm = (void *)malloc(sizeof(pushm));  // HACK
+//     pshm = (void *)malloc(sizeof(pshm));    // HACK
 
-    #else
-    struct sched_param param;
-    int done = 0;
-    struct timespec sleeptime = {0};
-    sleeptime.tv_nsec = NANO_5MSEC;	// #defines NANO_1MSEC, NANO_5MSEC & NANO_10MSEC are defined
+//     #else
+//     struct sched_param param;
+//     int done = 0;
+//     struct timespec sleeptime = {0};
+//     sleeptime.tv_nsec = NANO_5MSEC;	// #defines NANO_1MSEC, NANO_5MSEC & NANO_10MSEC are defined
 
-    #ifndef RUN_AS_RT_APP
-    //-----------------------------
-    // Runs as a NON RT Linux APP
-    //-----------------------------
-    param.__sched_priority = 0;
-    pthread_setschedparam(pthread_self(),  SCHED_OTHER, &param);
-    #else
-    //---------------------------------------------------------------
-    // Runs as a RT Linux APP with the same scheduling policy as the
-    // Background script PLCs
-    // To run at a recommended lower priority use BACKGROUND_RT_PRIORITY - 10
-    // To run at a higher priority use BACKGROUND_RT_PRIORITY + 1
-    //---------------------------------------------------------------------
-    param.__sched_priority =  BACKGROUND_RT_PRIORITY - 10;
-    pthread_setschedparam(pthread_self(),  SCHED_FIFO, &param);
-    #endif // RUN_AS_RT_APP
+//     #ifndef RUN_AS_RT_APP
+//     //-----------------------------
+//     // Runs as a NON RT Linux APP
+//     //-----------------------------
+//     param.__sched_priority = 0;
+//     pthread_setschedparam(pthread_self(),  SCHED_OTHER, &param);
+//     #else
+//     //---------------------------------------------------------------
+//     // Runs as a RT Linux APP with the same scheduling policy as the
+//     // Background script PLCs
+//     // To run at a recommended lower priority use BACKGROUND_RT_PRIORITY - 10
+//     // To run at a higher priority use BACKGROUND_RT_PRIORITY + 1
+//     //---------------------------------------------------------------------
+//     param.__sched_priority =  BACKGROUND_RT_PRIORITY - 10;
+//     pthread_setschedparam(pthread_self(),  SCHED_FIFO, &param);
+//     #endif // RUN_AS_RT_APP
 
-    InitLibrary();  // Required for accessing Power PMAC library
-    #endif // LOCAL_HOST
+//     InitLibrary();  // Required for accessing Power PMAC library
+//     #endif // LOCAL_HOST
 
-    // global int serverSock due to kill_handler
-    char *host = "127.0.0.1";
-    int port = 8080;
-    size_t data_count = 7;
-    size_t data_size = data_count*sizeof(double);
-    int clientSock;
-    int socketStatus;
-    double *dest = (double *) malloc(data_size);
-    char buffer[BUFFSIZE];
+//     // global int serverSock due to kill_handler
+//     char *host = "127.0.0.1";
+//     int port = 8080;
+//     size_t data_count = 7;
+//     size_t data_size = data_count*sizeof(double);
+//     int clientSock;
+//     int socketStatus;
+//     double *dest = (double *) malloc(data_size);
+//     char buffer[BUFFSIZE];
 
-    InitSocket(host, port);
+//     InitSocket(host, port);
 
-    clientSock = AcceptClient();
+//     clientSock = AcceptClient();
 
-    do {
-        // TODO: Add busy-wait here until buffer is clear to be overwritten
-        socketStatus = HandleClient(clientSock, buffer, data_size);
-        memcpy(dest, buffer, data_size);
-        test_print_data(dest, data_count);
-    } while (socketStatus == 0);
+//     do {
+//         // TODO: Add busy-wait here until buffer is clear to be overwritten
+//         socketStatus = HandleClient(clientSock, buffer, data_size);
+//         memcpy(dest, buffer, data_size);
+//         test_print_data(dest, data_count);
+//     } while (socketStatus == 0);
 
-    printf("Out of while\n");
-    CloseSocket(clientSock);
-    CloseSocket(serverSock);
+//     printf("Out of while\n");
+//     CloseSocket(clientSock);
+//     CloseSocket(serverSock);
 
-    #ifdef LOCAL_HOST
-    free(pushm);
-    #else
-    CloseLibrary();
-    #endif
-    return 0;
-}
+//     #ifdef LOCAL_HOST
+//     free(pushm);
+//     #else
+//     CloseLibrary();
+//     #endif
+//     return 0;
+// }
 

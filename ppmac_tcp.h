@@ -1,3 +1,5 @@
+#ifndef TCP_H
+#define TCP_H
 #define LOCAL_HOST   // Comment out if executing on the Power PMAC
 #ifndef LOCAL_HOST
 // #define RUN_AS_RT_APP
@@ -15,8 +17,8 @@
     struct SHM {
         double P[MAX_P];            // Global P variable Array
     };
-    struct SHM  *pshm;              // Pointer to shared memory
-    void        *pushm;             // Pointer to user shared memory
+    extern struct SHM  *pshm;              // Pointer to shared memory
+    extern void        *pushm;             // Pointer to user shared memory
 
     #include <stdio.h>
     #include <stdlib.h>
@@ -44,7 +46,7 @@
     #define MASTER_ECT_BASE 19
 #endif // LOCAL_HOST
 
-int serverSock;
+extern int serverSock;
 
 void InitSocket(char *host, int port);
 int AcceptClient(void);
@@ -54,3 +56,5 @@ void CloseSocket(int sock);
 void Die(char *message);
 void kill_handler(int sig);
 void test_process_data(double *dest, double *src, size_t data_size);
+
+#endif // TCP_H
